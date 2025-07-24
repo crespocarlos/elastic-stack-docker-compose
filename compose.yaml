@@ -33,6 +33,8 @@ configs:
     file: config/node.options
   otelcol.yml:
     file: config/otelcol/otelcol.yml
+  metricbeat.yml:
+    file: config/metricbeat.yml
   set-kibana-system-user-password.sh:
     file: scripts/set-kibana-system-user-password.sh
   initialize-universal-profiling.sh:
@@ -110,6 +112,7 @@ services:
       - eslogs:/usr/share/elasticsearch/logs
   kibana:
     # TODO generate encryption keys
+    scale: 0
     configs:
       - source: kibana.yml
         target: /usr/share/kibana/config/kibana.yml
@@ -193,6 +196,38 @@ services:
       - etc:/etc/elastic
       - kibana_logs:/usr/share/elastic-agent/logs/kibana
       - otel_registry:/usr/share/elastic-agent/otel_registry
+  metricbeat:
+    image: ${METRICBEAT_IMAGE}
+    container_name: metricbeat
+    network_mode: "container:otelcol"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOSTS=https://elasticsearch:${ES_PORT}
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+      - KIBANA_HOST=https://kibana:${KIBANA_PORT}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
+      - certs:/usr/share/metricbeat/config/certs
+    command: ["--strict.perms=false"]
+    restart: unless-stopped
+    labels:
+      co.elastic.logs/module: metricbeat
+    configs:
+      - source: metricbeat.yml
+        target: /usr/share/metricbeat/metricbeat.yml
+    develop:
+      watch:
+        - action: sync+restart
+          path: config/metricbeat.yml
+          target: /usr/share/metricbeat/metricbeat.yml
   setup_api_key:
     command: bash /usr/share/elasticsearch/bin/create-api-key.sh
     configs:
