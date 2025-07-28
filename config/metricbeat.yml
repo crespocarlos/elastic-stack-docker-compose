@@ -19,7 +19,7 @@ metricbeat.modules:
       - fsstat
     cpu.metrics: [percentages, normalized_percentages, ticks]
     enabled: true
-    period: 1m
+    period: 10s
     processes: [".*"]
 
 
