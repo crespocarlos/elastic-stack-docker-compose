@@ -180,6 +180,7 @@ services:
       - KIBANA_PORT
       - OTEL_COLLECTOR_PORT_GRPC
       - OTEL_COLLECTOR_PORT_HTTP
+      - OTEL_COLLECTOR_PORT_HEALTHCHECK
       - STORAGE_DIR=/usr/share/elastic-agent
     hostname: host.docker.internal
     image: ${COLLECTOR_CONTRIB_IMAGE}
@@ -196,38 +197,57 @@ services:
       - etc:/etc/elastic
       - kibana_logs:/usr/share/elastic-agent/logs/kibana
       - otel_registry:/usr/share/elastic-agent/otel_registry
+    healthcheck:
+      interval: 2s
+      retries: 120
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:${OTEL_COLLECTOR_PORT_HEALTHCHECK}/health",
+        ]
+      start_period: 10s
   metricbeat:
+    configs:
+      - source: metricbeat.yml
+        target: /usr/share/metricbeat/metricbeat.yml
     image: ${METRICBEAT_IMAGE}
     container_name: metricbeat
     network_mode: "container:otelcol"
     depends_on:
-      elasticsearch:
+      otelcol:
         condition: service_healthy
-      kibana:
-        condition: service_healthy
-    environment:
-      - ELASTICSEARCH_HOSTS=https://elasticsearch:${ES_PORT}
-      - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
-      - KIBANA_HOST=https://kibana:${KIBANA_PORT}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
-      - /proc:/hostfs/proc:ro
-      - /:/hostfs:ro
-      - certs:/usr/share/metricbeat/config/certs
-    command: ["--strict.perms=false"]
-    restart: unless-stopped
-    labels:
-      co.elastic.logs/module: metricbeat
-    configs:
-      - source: metricbeat.yml
-        target: /usr/share/metricbeat/metricbeat.yml
+    deploy:
+      resources:
+        limits:
+          memory: 200M
     develop:
       watch:
         - action: sync+restart
           path: config/metricbeat.yml
           target: /usr/share/metricbeat/metricbeat.yml
+    environment:
+      - ELASTICSEARCH_HOSTS=https://elasticsearch:${ES_PORT}
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+      - KIBANA_HOST=https://kibana:${KIBANA_PORT}
+    restart: unless-stopped
+    user: 0:0
+    volumes:
+      - ${HOST_FILESYSTEM}:/hostfs:ro
+      - ${DOCKER_SOCK}:/var/run/docker.sock:ro
+      - ${HOST_PROC}:/hostfs/proc:ro
+      - ${HOST_SYS_CGROUP}:/hostfs/sys/fs/cgroup:ro
+      - certs:/usr/share/metricbeat/config/certs
+      - eslogs:/usr/share/metricbeat/logs/es
+      - etc:/etc/elastic
+      - kibana_logs:/usr/share/metricbeat/logs/kibana
+      - otel_registry:/usr/share/metricbeat/otel_registry
+
+    labels:
+      co.elastic.logs/module: metricbeat
+
   setup_api_key:
     command: bash /usr/share/elasticsearch/bin/create-api-key.sh
     configs:

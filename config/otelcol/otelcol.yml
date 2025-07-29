@@ -2,6 +2,10 @@
 #
 # This is extra configuration meant to be loaded _after_ the copy of https://github.com/elastic/elastic-agent/tree/main/internal/pkg/otel/samples/linux/logs_metrics_traces.yml in this repository.
 # [Receivers](https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver#readme)
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:${OTEL_COLLECTOR_PORT_HEALTHCHECK}"
+
 receivers:
   filelog/eslogs:
     include:
@@ -86,6 +90,7 @@ exporters:
       insecure: true
 # [Service Section](https://opentelemetry.io/docs/collector/configuration/#service)
 service:
+  extensions: [health_check]
   pipelines:
     logs/eslogs:
       receivers:

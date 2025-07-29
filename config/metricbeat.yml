@@ -18,6 +18,10 @@ metricbeat.modules:
       - filesystem
       - fsstat
     cpu.metrics: [percentages, normalized_percentages, ticks]
+    processors:
+      - drop_event.when.regexp:
+          system.filesystem.mount_point: ^(/hostfs/host_mnt|/hostfs/run|/usr/share/metricbeat/metricbeat\.yml)
+
     enabled: true
     period: 10s
     processes: [".*"]
@@ -45,7 +49,7 @@ output.elasticsearch:
 # setup.kibana:
 #   host: "${KIBANA_HOST}"
 
-logging.level: debug
+logging.level: info
 logging.selectors: ["*"]
 logging.to_files: false
 logging.to_stdout: true
